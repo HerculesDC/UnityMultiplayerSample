@@ -60,7 +60,7 @@ public class NetworkServer : MonoBehaviour
             break;
             case Commands.PLAYER_UPDATE:
             PlayerUpdateMsg puMsg = JsonUtility.FromJson<PlayerUpdateMsg>(recMsg);
-            Debug.Log("Player update message received!");
+            Debug.Log("Player update message received! Player x position: " + puMsg.player.cubPos.x);
             break;
             case Commands.SERVER_UPDATE:
             ServerUpdateMsg suMsg = JsonUtility.FromJson<ServerUpdateMsg>(recMsg);

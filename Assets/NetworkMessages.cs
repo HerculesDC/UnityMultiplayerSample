@@ -33,7 +33,7 @@ namespace NetworkMessages
             player = new NetworkObjects.NetworkPlayer();
         }
     };
-
+    [System.Serializable]
     public class PlayerInputMsg:NetworkHeader{
         public Input myInput;
         public PlayerInputMsg(){
@@ -41,6 +41,16 @@ namespace NetworkMessages
             myInput = new Input();
         }
     }
+
+    [System.Serializable]
+    public class PlayerPosMsg : NetworkHeader {
+        public Vector3 playerPos;
+        public PlayerPosMsg() {
+            cmd = Commands.PLAYER_UPDATE;
+            playerPos = Vector3.one;
+        }
+    }
+
     [System.Serializable]
     public class  ServerUpdateMsg:NetworkHeader{
         public List<NetworkObjects.NetworkPlayer> players;
@@ -63,7 +73,8 @@ namespace NetworkObjects
         public Vector3 cubPos;
 
         public NetworkPlayer(){
-            cubeColor = new Color();
+            cubeColor = Color.white;
+            cubPos = Vector3.zero;
         }
     }
 }

@@ -76,7 +76,8 @@ public class NetworkClient : MonoBehaviour
     public void OnDestroy()
     {
         m_Driver.Dispose();
-    }   
+    }
+
     void Update()
     {
         m_Driver.ScheduleUpdate().Complete();
@@ -84,6 +85,14 @@ public class NetworkClient : MonoBehaviour
         if (!m_Connection.IsCreated)
         {
             return;
+        }
+
+        if (Input.GetKey(KeyCode.A)) {
+            PlayerUpdateMsg pumsg = new PlayerUpdateMsg();
+            pumsg.cmd = Commands.PLAYER_UPDATE;
+            pumsg.player.id = m_Connection.InternalId.ToString();
+            pumsg.player.cubPos.x -= 1;
+            SendToServer(JsonUtility.ToJson(pumsg));
         }
 
         DataStreamReader stream;
