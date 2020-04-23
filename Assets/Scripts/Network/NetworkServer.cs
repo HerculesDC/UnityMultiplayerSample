@@ -27,9 +27,8 @@ public class NetworkServer : MonoBehaviour
 
         m_Connections = new NativeList<NetworkConnection>(16, Allocator.Persistent);
         m_Players = new List<NetworkObjects.NetworkPlayer>(16);
-        InvokeRepeating("PrintReport", 0, 3);
+        //InvokeRepeating("PrintReport", 0, 3);
     }
-
     void SendToClient(string message, NetworkConnection c){
         var writer = m_Driver.BeginSend(NetworkPipeline.Null, c);
         NativeArray<byte> bytes = new NativeArray<byte>(Encoding.ASCII.GetBytes(message),Allocator.Temp);
@@ -47,11 +46,12 @@ public class NetworkServer : MonoBehaviour
         m_Connections.Add(c);
         
         m_Players.Add(new NetworkObjects.NetworkPlayer());
+        m_Players[m_Players.Count - 1].id = c.InternalId.ToString();
 
         //Yeah, I know I did something unreadable here. 
         //But it felt more practical to assign these things simultaneously
         PlayerUpdateMsg msg = new PlayerUpdateMsg();
-        msg.player.id = m_Players[m_Players.Count - 1].id = c.InternalId.ToString();
+        msg.player.id = m_Players[m_Players.Count - 1].id;
 
         System.Random r = new System.Random();
         msg.player.r = m_Players[m_Players.Count - 1].r = (float)r.NextDouble();
@@ -65,15 +65,8 @@ public class NetworkServer : MonoBehaviour
         Debug.Log("Accepted a connection! ID: "+c.InternalId.ToString()+
             ".\nTotal players connected: "+m_Connections.Length.ToString());
         //Create Cube message:
-        ServerUpdateMsg sumsg = new ServerUpdateMsg();
-        foreach (NetworkObjects.NetworkPlayer player in m_Players) {
-            sumsg.players.Add(player);
-        }
-        string message = JsonUtility.ToJson(sumsg);
-        foreach (var player in m_Connections) {
-            Debug.Log(sumsg.players);
-            SendToClient(message, player);
-        }     
+        SendUpdateMessage();
+        PrintReport();
     }
 
     void OnData(DataStreamReader stream, int i){
@@ -88,8 +81,11 @@ public class NetworkServer : MonoBehaviour
             Debug.Log("Handshake message received!");
             break;
             case Commands.PLAYER_UPDATE:
+            Debug.Log(recMsg);
             PlayerUpdateMsg puMsg = JsonUtility.FromJson<PlayerUpdateMsg>(recMsg);
-            Debug.Log("Player update message received! Player x position: " + puMsg.player.x);
+            //Debug.Log("Player update message received!");
+            ProcessPlayerMessage(puMsg);
+            PrintReport();
             break;
             case Commands.SERVER_UPDATE: //Doesn't make much sense here, but still
             ServerUpdateMsg suMsg = JsonUtility.FromJson<ServerUpdateMsg>(recMsg);
@@ -103,6 +99,7 @@ public class NetworkServer : MonoBehaviour
 
     void OnDisconnect(int i){
         Debug.Log("Client disconnected from server");
+        ProcessDisconnect(i);
         m_Connections[i] = default(NetworkConnection);
     }
 
@@ -130,8 +127,7 @@ public class NetworkServer : MonoBehaviour
             // Check if there is another new connection
             c = m_Driver.Accept();
         }
-
-
+        
         // Read Incoming Messages
         DataStreamReader stream;
         for (int i = 0; i < m_Connections.Length; i++)
@@ -155,13 +151,48 @@ public class NetworkServer : MonoBehaviour
             }
         }
     }
-
+    void ProcessPlayerMessage(PlayerUpdateMsg msg) {
+        for (int i = 0; i < m_Players.Count; ++i) {
+            if (msg.player.id == m_Players[i].id) {
+                m_Players[i].x = msg.player.x;
+                m_Players[i].y = msg.player.y;
+                m_Players[i].z = msg.player.z;
+            }
+        }
+        SendUpdateMessage();
+    }
+    void ProcessDisconnect(int connectionIndex) {
+        //NOT WORKING, FOR WHATEVER REASON
+        /*
+        for(int i = 0; i < m_Players.Count; ++i) {
+            if (m_Players[i].id == m_Connections[i].InternalId.ToString()) {
+                m_Players[i] = default(NetworkObjects.NetworkPlayer);
+            }
+        }
+        SendUpdateMessage();
+        */
+    }
+    void SendUpdateMessage() {
+        ServerUpdateMsg suMsg = new ServerUpdateMsg();
+        foreach (NetworkObjects.NetworkPlayer player in m_Players)
+        {
+            suMsg.players.Add(player);
+        }
+        string message = JsonUtility.ToJson(suMsg);
+        foreach (var player in m_Connections)
+        {
+            //Debug.Log(sumsg.players);
+            SendToClient(message, player);
+        }
+    }
     void PrintReport() {
         Debug.Log("Connections: " + m_Connections.Length.ToString());
         foreach (var player in m_Players) {
-            Vector3 temp = new Vector3(player.x, player.y, player.z);
-            Debug.Log("Player: "+player.id.ToString()+
-                ". Position: "+temp.ToString());
+            if (player != default(NetworkObjects.NetworkPlayer)) {
+                Vector3 temp = new Vector3(player.x, player.y, player.z);
+                Debug.Log("Player: " + player.id.ToString() +
+                    ". Position: " + temp.ToString());
+            }
         }
     }
 }

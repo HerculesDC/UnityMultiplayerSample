@@ -339,7 +339,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 79e313398508b4053942f94821862d42, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  serverIP: 127.0.0.1
+  serverIP: 3.89.108.212
   serverPort: 12345
+  m_internalID: 
   m_model: {fileID: 1041017059126503392, guid: 428cd8b4e6aaacf478cc8b859e0415e4, type: 3}
   m_Players: []
+  m_cubes: []

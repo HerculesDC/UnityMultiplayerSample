@@ -14,11 +14,12 @@ public class NetworkClient : MonoBehaviour
     public NetworkConnection m_Connection;
     public string serverIP;
     public ushort serverPort;
-    private string m_internalID;
+
+    public string m_internalID;
     [SerializeField] private GameObject m_model;
 
     public List<NetworkObjects.NetworkPlayer> m_Players;
-    public Dictionary<NetworkObject, GameObject> m_cubes;
+    public List<GameObject> m_cubes;
     
     void Start ()
     {
@@ -28,7 +29,7 @@ public class NetworkClient : MonoBehaviour
         m_Connection = m_Driver.Connect(endpoint);
 
         m_Players = new List<NetworkObjects.NetworkPlayer>();
-        m_cubes = new Dictionary<NetworkObject, GameObject>();
+        m_cubes = new List<GameObject>();
         m_internalID = "";
     }
     
@@ -61,8 +62,9 @@ public class NetworkClient : MonoBehaviour
             break;
             case Commands.SERVER_UPDATE:
             ServerUpdateMsg suMsg = JsonUtility.FromJson<ServerUpdateMsg>(recMsg);
+
             UpdatePlayers(suMsg);
-            Debug.Log("Server update message received!");
+            //Debug.Log("Server update message received!");
             Debug.Log("Players: " + suMsg.players.Count.ToString());
             break;
             default:
@@ -115,14 +117,58 @@ public class NetworkClient : MonoBehaviour
 
             cmd = m_Connection.PopEvent(m_Driver, out stream);
         }
+
+        foreach (NetworkObjects.NetworkPlayer player in m_Players) {
+            if (player.id == m_internalID) {
+                if (Int32.TryParse(player.id, out int index)) {
+                    if (player.x != m_cubes[index].transform.position.x ||
+                    player.z != m_cubes[index].transform.position.z) {
+                        KeepAlive();
+                    }
+                }
+                
+            }
+        }
     }
     void UpdatePlayers(ServerUpdateMsg s) {
         Debug.Log("Server players: " + s.players.Count.ToString() + ",Client Players: " + m_Players.Count.ToString());
-        if (s.players.Count != m_Players.Count) { //spawn new
-            foreach (NetworkObjects.NetworkPlayer player in s.players) {
-                if (!m_Players.Contains(player)) {
+        if (s.players.Count > m_Players.Count)
+        { //spawn new
+            foreach (NetworkObjects.NetworkPlayer player in s.players)
+            {
+                if (!m_Players.Contains(player))
+                {
                     m_Players.Add(player);
                     SpawnPlayer(player);
+                }
+            }
+        }
+        else if (s.players.Count < m_Players.Count) {
+            foreach (NetworkObjects.NetworkPlayer player in m_Players) {
+                if (!s.players.Contains(player)) {
+                    if (Int32.TryParse(player.id, out int index)){
+                        Destroy(m_cubes[index]);
+                        m_cubes.Remove(m_cubes[index]);
+                        m_Players.Remove(player);
+                    }
+                }
+            }
+        }
+        else {
+            foreach (NetworkObjects.NetworkPlayer clientPlayer in m_Players) {
+                foreach (NetworkObjects.NetworkPlayer serverPlayer in m_Players) {
+                    if (serverPlayer.id == m_internalID) {
+                        continue;
+                    }
+                    else if (serverPlayer.id == clientPlayer.id) {
+                        clientPlayer.x = serverPlayer.x;
+                        clientPlayer.y = serverPlayer.y;
+                        clientPlayer.z = serverPlayer.z;
+                        //this should be a separate function, but meh...
+                        if (Int32.TryParse(clientPlayer.id, out int index)) {
+                            m_cubes[index].transform.position = new Vector3(clientPlayer.x, clientPlayer.y, clientPlayer.z);
+                        }
+                    }
                 }
             }
         }
@@ -131,28 +177,30 @@ public class NetworkClient : MonoBehaviour
 
         Vector3 pos = new Vector3(newPlayer.x, newPlayer.y, newPlayer.z);
         Color c = new Color(newPlayer.r, newPlayer.g, newPlayer.b);
-
+        string s = newPlayer.id;
         GameObject temp = GameObject.Instantiate(m_model, pos, Quaternion.identity, null);
-        temp.GetComponent<PlayerBehaviour>().myID = newPlayer.id;
+        temp.GetComponent<PlayerBehaviour>().myID = s;
         temp.GetComponent<MeshRenderer>().material.color = c;
-        m_cubes.Add((NetworkObject)newPlayer, temp); //I'm casting it because I only want the ID
+        m_cubes.Add(temp); //Uses the NetworkObject part of NetworkPlayer
     }
-
     void ProcessPlayerUpdateMessage(PlayerUpdateMsg msg) { //doesn't check if synchronous connections happen
         if (m_internalID == "") {
             m_internalID = msg.player.id;
-            SpawnPlayer(msg.player);
+            //SpawnPlayer(msg.player);
         }
         else if (m_internalID == msg.player.id) {
             //update player status
         }
     }
-
     void KeepAlive() {
-        PlayerUpdateMsg pum = new PlayerUpdateMsg();
-        pum.player.x = this.gameObject.transform.position.x;
-        pum.player.y = this.gameObject.transform.position.y;
-        pum.player.z = this.gameObject.transform.position.z;
-        SendToServer(JsonUtility.ToJson(pum));
+        if (Int32.TryParse(m_internalID, out int i)) {
+            PlayerUpdateMsg pum = new PlayerUpdateMsg();
+            pum.player.id = m_internalID;
+            //it's not THIS gameObject: gotta find the correct cube
+            pum.player.x = m_cubes[i].transform.position.x;
+            pum.player.y = m_cubes[i].transform.position.y;
+            pum.player.z = m_cubes[i].transform.position.z;
+            SendToServer(JsonUtility.ToJson(pum));
+        }
     }
 }
